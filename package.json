@@ -1,0 +1,70 @@
+{
+  "name": "@ozjsey/write-behind",
+  "version": "0.1.0",
+  "description": "Write-behind cache in plain TypeScript — local state stays authoritative, the server's reply is discarded on purpose, and a slow response can never clear a newer edit",
+  "author": "Ozgur Seyidoglu",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ozjsey/write-behind.git"
+  },
+  "homepage": "https://github.com/ozjsey/write-behind#readme",
+  "bugs": {
+    "url": "https://github.com/ozjsey/write-behind/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/writeBehind.min.cjs",
+  "module": "dist/writeBehind.min.js",
+  "types": "dist/writeBehind.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/writeBehind.d.ts",
+        "default": "./dist/writeBehind.min.js"
+      },
+      "require": {
+        "types": "./dist/writeBehind.min.d.cts",
+        "default": "./dist/writeBehind.min.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsup writeBehind.ts --format esm,cjs --minify --sourcemap --dts --out-dir dist --clean && mv dist/writeBehind.js dist/writeBehind.min.js && mv dist/writeBehind.js.map dist/writeBehind.min.js.map && mv dist/writeBehind.cjs dist/writeBehind.min.cjs && mv dist/writeBehind.cjs.map dist/writeBehind.min.cjs.map && mv dist/writeBehind.d.cts dist/writeBehind.min.d.cts && node -e \"const fs=require('fs');for(const f of ['writeBehind.min.js','writeBehind.min.cjs']){const p='dist/'+f;let s=fs.readFileSync(p,'utf8');s=s.replace(/\\/\\/# sourceMappingURL=writeBehind\\.(js|cjs)\\.map/, '//# sourceMappingURL='+f+'.map');fs.writeFileSync(p,s);}\"",
+    "test": "vitest run",
+    "check:dist": "npm run build && node dist-check.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "write-behind",
+    "write-back",
+    "outbox",
+    "autosave",
+    "auto-save",
+    "debounce-save",
+    "batch-save",
+    "offline",
+    "retry",
+    "optimistic",
+    "local-first",
+    "dirty-tracking",
+    "sync",
+    "typescript",
+    "framework-agnostic",
+    "zero-dependencies"
+  ],
+  "devDependencies": {
+    "jsdom": "^25.0.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
