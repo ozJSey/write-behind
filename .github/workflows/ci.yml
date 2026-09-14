@@ -1,0 +1,49 @@
+name: CI
+
+# push / pull_request cover what we touch. The schedule is the point of this
+# workflow: nothing else notices a transitive dependency moving under a package
+# nobody is editing, and three runs a day keep that window under ~8 hours.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # Every 8 hours: 00:00, 08:00 and 16:00 UTC.
+    - cron: '0 */8 * * *'
+
+# Read-only. Everything here talks to the public npm registry and nothing else:
+# no secrets, no NODE_AUTH_TOKEN. Publishing is manual and stays the owner's.
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          # Node 22 matches the toolchain this package is developed, tested and
+          # released on locally; the package declares no `engines` range, so CI
+          # pins the one version its lockfile and dist have actually been proven on.
+          node-version: '22'
+          cache: npm
+
+      # `npm ci` installs exactly what package-lock.json pins, fetched from the
+      # public registry — no aliases to local sources, no file: links, no
+      # workspace resolution. It also fails outright if the lockfile has drifted
+      # out of sync with package.json, which is half the value of running it here.
+      - run: npm ci
+
+      - run: npm test
+
+      - run: npm run typecheck
+
+      - run: npm run build
+
+      - run: npm run check:dist
+
+      # Checks tarball composition every run: catches a `files` entry that stopped
+      # matching, and source or test leakage, before it reaches the registry.
+      - run: npm pack --dry-run
