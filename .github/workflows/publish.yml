@@ -1,0 +1,107 @@
+name: Publish to npm
+
+# Run from the browser: Actions → "Publish to npm" → Run workflow.
+#
+# This exists because npm 2FA is set to `auth-and-writes`, which challenges every
+# publish from a terminal for a one-time code. A granular access token in the
+# NPM_TOKEN secret is not challenged, so the release happens here instead — and
+# the same pre-flight the local script runs happens first, so the button is not
+# a way to skip the gates.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Pre-flight only — run every gate and pack the tarball, but do not publish'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write        # npm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+
+      # `npm ci` fails outright if the lockfile has drifted from package.json,
+      # which is half the reason it is here rather than `npm install`.
+      - run: npm ci
+
+      - name: Is this version already on the registry?
+        id: check
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          LOCAL=$(node -p "require('./package.json').version")
+          echo "name=$NAME"   >> "$GITHUB_OUTPUT"
+          echo "local=$LOCAL" >> "$GITHUB_OUTPUT"
+
+          # A 404 means "never published", which is publishable. Any other
+          # failure means npm did not answer, and "npm was quiet" is not
+          # "this version is free" — that guess is how a release gets made
+          # against a registry nobody actually reached.
+          if OUT=$(npm view "$NAME@$LOCAL" version 2>&1); then
+            echo "  $NAME@$LOCAL is ALREADY on the registry — nothing to do."
+            echo "publish=no" >> "$GITHUB_OUTPUT"
+          elif grep -q 'E404' <<<"$OUT"; then
+            echo "  $NAME@$LOCAL is not on the registry — it will be published."
+            echo "publish=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::npm did not answer for $NAME@$LOCAL, so nothing was decided:"
+            echo "$OUT"
+            exit 1
+          fi
+
+      - run: npm test
+      - run: npm run build --if-present
+      - run: npm run typecheck --if-present
+
+      # Catches a `files` entry that stopped matching, and source or test
+      # leakage, before it reaches the registry rather than after.
+      - run: npm pack --dry-run
+
+      - name: The packed docs must not deny this release
+        run: |
+          VERSION="${{ steps.check.outputs.local }}"
+          for DOC in README.md CHANGELOG.md; do
+            [ -f "$DOC" ] || continue
+            # Only the paragraph belonging to the version being published.
+            BLOCK=$(awk -v v="$VERSION" '
+              $0 ~ "^#+ .*"v { inblock=1; print; next }
+              inblock && /^#+ / { exit }
+              inblock { print }
+            ' "$DOC")
+            if grep -qiE 'unreleased|not published|not on npm' <<<"$BLOCK"; then
+              echo "::error::$DOC says $VERSION is unreleased, and $VERSION is the version being published."
+              grep -inE 'unreleased|not published|not on npm' <<<"$BLOCK"
+              exit 1
+            fi
+          done
+          echo "  $VERSION is not denied by its own docs."
+
+      - name: Publish
+        if: steps.check.outputs.publish == 'yes' && inputs.dry_run == false
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Summary
+        run: |
+          {
+            echo "### ${{ steps.check.outputs.name }}@${{ steps.check.outputs.local }}"
+            if [ "${{ steps.check.outputs.publish }}" != "yes" ]; then
+              echo "Already on the registry — nothing published."
+            elif [ "${{ inputs.dry_run }}" = "true" ]; then
+              echo "**Dry run.** Every gate passed and the tarball packed; nothing was published."
+              echo "Re-run with \`dry_run\` unchecked to release it."
+            else
+              echo "**Published.**"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
