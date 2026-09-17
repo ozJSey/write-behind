@@ -4,6 +4,13 @@ All notable changes to `@ozjsey/write-behind`. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.1 — 2026-09-18
+
+Documentation only; no code change. The README is cut to a landing page — problem, solution,
+install, a couple of usage examples — because the playground now carries the reference: every
+option driven in a real browser rather than described in a table. Claims that could not be
+verified against the source were deleted rather than carried across.
+
 ## [0.1.0] — 2026-09-14
 
 First release. The engine was extracted from `@ozjsey/vue-write-behind` 0.1.1, which now consumes

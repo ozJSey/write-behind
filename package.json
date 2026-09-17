@@ -1,7 +1,7 @@
 {
   "name": "@ozjsey/write-behind",
-  "version": "0.1.0",
-  "description": "Write-behind cache in plain TypeScript — local state stays authoritative, the server's reply is discarded on purpose, and a slow response can never clear a newer edit",
+  "version": "0.1.1",
+  "description": "Write-behind cache in plain TypeScript \u2014 local state stays authoritative, the server's reply is discarded on purpose, and a slow response can never clear a newer edit",
   "author": "Ozgur Seyidoglu",
   "license": "MIT",
   "repository": {
