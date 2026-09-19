@@ -4,7 +4,10 @@ Queue writes, coalesce them per key, send them on a clock, retry with backoff â€
 with **zero dependencies**, no peer dependencies and no framework. It runs in the browser, in Node,
 in a worker.
 
-[![npm version](https://img.shields.io/npm/v/@ozjsey/write-behind.svg)](https://www.npmjs.com/package/@ozjsey/write-behind)
+[![npm](https://img.shields.io/npm/v/@ozjsey/write-behind.svg)](https://www.npmjs.com/package/@ozjsey/write-behind)
+![license MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+![gzipped 2.46 KiB](https://img.shields.io/badge/gzipped-2.46%20KiB-blue.svg)
+![dependencies 0](https://img.shields.io/badge/dependencies-0-blue.svg)
 
 > **[See it live](https://ozjsey.github.io/npm-portfolio-playground/#vue-write-behind)** â€” the
 > playground cards drive this engine through its Vue adapter, against a fake server you can break
