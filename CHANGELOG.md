@@ -4,6 +4,36 @@ All notable changes to `@ozjsey/write-behind`. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.2 — 2026-09-20
+
+A ceiling on retries. Shipped as a patch on purpose: `@ozjsey/vue-write-behind` depends on
+`^0.1.0`, and a caret pins the MINOR on a 0.x package — a 0.2.0 engine would never reach a single
+Vue consumer.
+
+### Added
+
+- **`retry.maxRetries`, default `5`.** A failing key now gets five scheduled retries — 1s, 2, 4, 8,
+  16 — and is then blocked. `Infinity` restores the previous behaviour by name.
+
+### Fixed
+
+- **A write that could never succeed retried every 30 seconds for the life of the page.** The
+  curve was `min(initialDelay * factor ** (attempts - 1), maxDelay)` for every attempt, with no
+  ceiling and no option that could add one, so it treated a permanent failure — a 400, a malformed
+  payload, a worker module that throws at load because its context is incomplete — exactly like a
+  flaky network. `retry: false` was the only stop, and it gives up after the *first* failure.
+
+  Blocked is not discarded, and that distinction is the whole design: the value and its place in
+  the outbox survive, and a fresh edit, an explicit `retry()` or a forced take all re-arm the key.
+  Giving up on the *schedule* is not giving up on the write — losing a queued write silently
+  remains the one outcome this library refuses.
+
+  One existing test had to change rather than being made to pass: the default curve's assertion
+  covered attempts 6, 7 and 20, which no longer get a delay. The cap test keeps its invariant by
+  opting into `maxRetries: Infinity`, because it is testing that the delay never exceeds `maxDelay`
+  — with the new default the curve would be blocked long before attempt 50 and the overflow it
+  guards against would never be computed.
+
 ## 0.1.1 — 2026-09-18
 
 Documentation only; no code change. The README is cut to a landing page — problem, solution,

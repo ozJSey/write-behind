@@ -114,8 +114,20 @@ export type WriteBehindBatchWriter<T> = (
   attempt: WriteBehindAttempt,
 ) => WriteBehindBatchOutcome | void | Promise<WriteBehindBatchOutcome | void>
 
-/** Per-key exponential backoff. Defaults produce 1s → 2 → 4 → 8 → 16 → 30s, capped. */
+/** Per-key exponential backoff. Defaults produce 1s → 2 → 4 → 8 → 16s, then stop. */
 export interface WriteBehindRetryOptions {
+  /**
+   * How many retries a failing key gets before it is blocked. Default `5`.
+   *
+   * Blocked is not discarded: the value and its place in the outbox survive,
+   * and a fresh edit, an explicit `retry()` or a forced take all re-arm it.
+   * The point is to stop *scheduling* attempts for a write that cannot land —
+   * a 400, a malformed payload, a worker that throws at load — which the curve
+   * otherwise retried every `maxDelay` for the life of the page.
+   *
+   * `Infinity` restores that unbounded behaviour deliberately.
+   */
+  maxRetries?: number
   /** Delay after the first failure, in ms. Default `1000`. */
   initialDelay?: number
   /** Ceiling for the delay, in ms. Default `30000`. */

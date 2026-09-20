@@ -13,6 +13,17 @@ import type { WriteBehindRetryOptions } from './types'
 const DEFAULT_INITIAL_DELAY = 1000
 const DEFAULT_MAX_DELAY = 30000
 const DEFAULT_FACTOR = 2
+/**
+ * Five retries — 1s, 2, 4, 8, 16 — so a key that cannot land stops trying
+ * about half a minute after it started, and says so.
+ *
+ * There was no ceiling at all before. A write that could never succeed — a
+ * 400, a malformed payload, a worker module that throws at load because its
+ * context is incomplete — retried every `maxDelay` for the life of the page,
+ * because the curve treated a permanent failure exactly like a flaky network.
+ * `Infinity` restores that, by name, for the caller who genuinely wants it.
+ */
+const DEFAULT_MAX_RETRIES = 5
 
 /**
  * Backoff for the n-th consecutive failure (1-based), in ms — or `undefined`
@@ -30,8 +41,18 @@ export function createBackoff(
     initialDelay = DEFAULT_INITIAL_DELAY,
     maxDelay = DEFAULT_MAX_DELAY,
     factor = DEFAULT_FACTOR,
+    maxRetries = DEFAULT_MAX_RETRIES,
   } = retry ?? {}
-  return (attempts) => Math.min(initialDelay * factor ** (attempts - 1), maxDelay)
+  return (attempts) => {
+    // `attempts` is the consecutive-failure count, so `attempts > maxRetries`
+    // is the failure AFTER the last retry we agreed to schedule. Returning
+    // undefined here is the outbox's existing "blocked" signal: the key keeps
+    // its value and its place, and waits for a fresh edit, an explicit
+    // `retry()`, or a forced take. Nothing is dropped — giving up on the
+    // schedule is not giving up on the write.
+    if (attempts > maxRetries) return undefined
+    return Math.min(initialDelay * factor ** (attempts - 1), maxDelay)
+  }
 }
 
 export interface SchedulerConfig {

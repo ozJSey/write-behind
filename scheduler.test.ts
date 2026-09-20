@@ -6,12 +6,42 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createBackoff, createScheduler } from './src/scheduler'
 
 describe('createBackoff', () => {
-  it('runs 1 → 2 → 4 → 8 → 16 → 30s and stays capped', () => {
+  it('runs 1 → 2 → 4 → 8 → 16s across the five retries it allows', () => {
     const backoff = createBackoff(undefined)
 
-    expect([1, 2, 3, 4, 5, 6, 7, 20].map(backoff)).toEqual([
-      1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000,
-    ])
+    expect([1, 2, 3, 4, 5].map(backoff)).toEqual([1000, 2000, 4000, 8000, 16000])
+  })
+
+  /**
+   * The default used to be unbounded: `min(1000 * 2 ** (n - 1), 30000)` for
+   * every n, so a write that could never succeed — a 400, a malformed payload,
+   * a worker module that throws at load — retried every 30 seconds for the
+   * life of the page. Nothing capped it and there was no option that could.
+   */
+  it('gives up after five retries instead of retrying for the life of the page', () => {
+    const backoff = createBackoff(undefined)
+
+    expect(backoff(5)).toBe(16000)
+    expect(backoff(6)).toBeUndefined()
+    expect([7, 20, 1000].map(backoff)).toEqual([undefined, undefined, undefined])
+  })
+
+  it('honours a custom ceiling on the number of retries', () => {
+    const backoff = createBackoff({ maxRetries: 2 })
+
+    expect([1, 2].map(backoff)).toEqual([1000, 2000])
+    expect(backoff(3)).toBeUndefined()
+  })
+
+  /**
+   * The old behaviour is still reachable, by name. Someone writing to a queue
+   * that is expected to be down for hours wants it, and it should be a choice
+   * rather than the thing you get by not knowing about it.
+   */
+  it('maxRetries: Infinity restores the unbounded curve, capped at maxDelay', () => {
+    const backoff = createBackoff({ maxRetries: Infinity })
+
+    expect([5, 6, 7, 20, 1000].map(backoff)).toEqual([16000, 30000, 30000, 30000, 30000])
   })
 
   it('honours a custom curve', () => {
@@ -27,7 +57,11 @@ describe('createBackoff', () => {
   })
 
   it('never returns a delay above the cap, whatever the attempt count', () => {
-    const backoff = createBackoff({ initialDelay: 1000, factor: 10 })
+    // `maxRetries: Infinity` because this is testing the CAP, not the ceiling
+    // on attempts: with the default five the curve would be blocked long
+    // before attempt 50 and the overflow it guards against — `1000 * 10 ** 49`
+    // — would never be computed at all.
+    const backoff = createBackoff({ initialDelay: 1000, factor: 10, maxRetries: Infinity })
 
     expect(backoff(50)).toBe(30000)
     expect(Number.isFinite(backoff(1000) ?? Number.POSITIVE_INFINITY)).toBe(true)
